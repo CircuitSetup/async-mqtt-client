@@ -5,7 +5,6 @@
 AsyncMqttClient::AsyncMqttClient()
 : _connected(false)
 , _connectPacketNotEnoughSpace(false)
-, _disconnectOnPoll(false)
 , _tlsBadFingerprint(false)
 , _lastClientActivity(0)
 , _lastServerActivity(0)
@@ -144,7 +143,6 @@ AsyncMqttClient& AsyncMqttClient::onPublish(const AsyncMqttClientInternals::OnPu
 void AsyncMqttClient::_clear() {
   _lastPingRequestTime = 0;
   _connected = false;
-  _disconnectOnPoll = false;
   _connectPacketNotEnoughSpace = false;
   _tlsBadFingerprint = false;
   _currentParsedPacket.reset();
@@ -400,16 +398,8 @@ void AsyncMqttClient::_onPoll(AsyncClient* client) {
     _sendPing();
   }
 
-
   // handle to send ack packets
-
   _sendAcks();
-
-  // handle disconnect
-
-  if (_disconnectOnPoll) {
-    _sendDisconnect();
-  }
 }
 
 /* MQTT */
@@ -571,8 +561,6 @@ bool AsyncMqttClient::_sendDisconnect() {
   _client.send();
   _client.close(true);
 
-  _disconnectOnPoll = false;
-
   SEMAPHORE_GIVE();
   return true;
 }
@@ -620,7 +608,6 @@ void AsyncMqttClient::disconnect(bool force) {
     _client.close(true);
   } else {
     _sendDisconnect();
-    _disconnectOnPoll = false;
   }
 }
 
