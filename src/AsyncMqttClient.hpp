@@ -106,7 +106,6 @@ class AsyncMqttClient {
   char _generatedClientId[18 + 1];  // esp8266-abc123 and esp32-abcdef123456 
   IPAddress _ip;
   const char* _host;
-  bool _useIp;
 #if ASYNC_TCP_SSL_ENABLED
   bool _secure;
 #endif

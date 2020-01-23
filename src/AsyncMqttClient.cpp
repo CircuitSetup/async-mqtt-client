@@ -10,7 +10,6 @@ AsyncMqttClient::AsyncMqttClient()
 , _lastServerActivity(0)
 , _lastPingRequestTime(0)
 , _host(nullptr)
-, _useIp(false)
 #if ASYNC_TCP_SSL_ENABLED
 , _secure(false)
 #endif
@@ -83,14 +82,13 @@ AsyncMqttClient& AsyncMqttClient::setWill(const char* topic, MQTTQOS qos, bool r
 }
 
 AsyncMqttClient& AsyncMqttClient::setServer(const IPAddress& ip, uint16_t port) {
-  _useIp = true;
   _ip = ip;
+  _host = nullptr;
   _port = port;
   return *this;
 }
 
 AsyncMqttClient& AsyncMqttClient::setServer(const char* host, uint16_t port) {
-  _useIp = false;
   _host = host;
   _port = port;
   return *this;
@@ -589,10 +587,10 @@ AsyncMqttClient::Error AsyncMqttClient::connect() {
     connectResult = _client.connect(_host, _port, _secure);
   }
 #else
-  if (_useIp) {
-    connectResult = _client.connect(_ip, _port);
-  } else {
+  if (_host) {
     connectResult = _client.connect(_host, _port);
+  } else {
+    connectResult = _client.connect(_ip, _port);
   }
 #endif
   if (connectResult)
