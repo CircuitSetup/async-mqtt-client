@@ -1,29 +1,31 @@
 #include "SubAckPacket.hpp"
 
+#include <utility>
+
 using AsyncMqttClientInternals::SubAckPacket;
 
 SubAckPacket::SubAckPacket(ParsingInformation* parsingInformation, OnSubAckInternalCallback callback)
 : _parsingInformation(parsingInformation)
-, _callback(callback)
+, _callback(std::move(callback))
 , _bytePosition(0)
-, _packetIdMsb(0)
 , _packetId(0) {
 }
 
-SubAckPacket::~SubAckPacket() {
-}
+SubAckPacket::~SubAckPacket() = default;
 
-void SubAckPacket::parseVariableHeader(char* data, size_t len, size_t* currentBytePosition) {
-  char currentByte = data[(*currentBytePosition)++];
+void SubAckPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) {
+  (void)len;
+  uint8_t currentByte = data[(*currentBytePosition)++];
   if (_bytePosition++ == 0) {
-    _packetIdMsb = currentByte;
+    _packetId = currentByte << 8u;
   } else {
-    _packetId = currentByte | _packetIdMsb << 8;
+    _packetId |= currentByte;
     _parsingInformation->bufferState = BufferState::PAYLOAD;
   }
 }
 
-void SubAckPacket::parsePayload(char* data, size_t len, size_t* currentBytePosition) {
+void SubAckPacket::parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) {
+  (void)len;
   char status = data[(*currentBytePosition)++];
 
   /* switch (status) {

@@ -1,5 +1,10 @@
 #pragma once
 
+#include <vector>
+
+#include "Flags.hpp"
+#include "Headers.hpp"
+
 namespace AsyncMqttClientInternals {
 enum class BufferState : uint8_t {
   NONE = 0,
@@ -9,13 +14,11 @@ enum class BufferState : uint8_t {
 };
 
 struct ParsingInformation {
-  BufferState bufferState;
+  BufferState bufferState = BufferState::NONE;
 
-  uint16_t maxTopicLength;
-  char* topicBuffer;
-
-  uint8_t packetType;
-  uint16_t packetFlags;
-  uint32_t remainingLength;
+  std::vector<uint8_t> topicBuffer{};
+  PacketType type;
+  uint8_t flags;
+  uint32_t size;
 };
 }  // namespace AsyncMqttClientInternals

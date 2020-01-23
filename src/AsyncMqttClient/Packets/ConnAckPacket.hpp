@@ -9,10 +9,10 @@ namespace AsyncMqttClientInternals {
 class ConnAckPacket : public Packet {
  public:
   explicit ConnAckPacket(ParsingInformation* parsingInformation, OnConnAckInternalCallback callback);
-  ~ConnAckPacket();
+  ~ConnAckPacket() override;
 
-  void parseVariableHeader(char* data, size_t len, size_t* currentBytePosition);
-  void parsePayload(char* data, size_t len, size_t* currentBytePosition);
+  void parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) override;
+  void parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) override;
 
  private:
   ParsingInformation* _parsingInformation;

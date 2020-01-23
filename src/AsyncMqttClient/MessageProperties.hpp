@@ -1,7 +1,9 @@
 #pragma once
 
+#include "QOS.hpp"
+
 struct AsyncMqttClientMessageProperties {
-  uint8_t qos;
+  MQTTQOS qos;
   bool dup;
   bool retain;
 };

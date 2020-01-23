@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <deque>
 #include <vector>
 
 #include "Arduino.h"
@@ -10,6 +11,7 @@
 #include <freertos/semphr.h>
 #elif defined(ESP8266)
 #include <ESPAsyncTCP.h>
+
 #else
 #error Platform not supported
 #endif
@@ -26,6 +28,7 @@
 #include "AsyncMqttClient/Callbacks.hpp"
 #include "AsyncMqttClient/DisconnectReasons.hpp"
 #include "AsyncMqttClient/Storage.hpp"
+#include "AsyncMqttClient/QOS.hpp"
 
 #include "AsyncMqttClient/Packets/Packet.hpp"
 #include "AsyncMqttClient/Packets/ConnAckPacket.hpp"
@@ -48,35 +51,45 @@
 
 class AsyncMqttClient {
  public:
+    enum class ConnectionState : uint8_t {
+        NOT_CONNECTED,
+        CONNECTED,
+
+    };
+    enum class Error : uint8_t {
+        OK,
+        ALREADY_CONNECTED,
+        CONNECTION_FAILED
+    };
+
   AsyncMqttClient();
   ~AsyncMqttClient();
 
   AsyncMqttClient& setKeepAlive(uint16_t keepAlive);
   AsyncMqttClient& setClientId(const char* clientId);
   AsyncMqttClient& setCleanSession(bool cleanSession);
-  AsyncMqttClient& setMaxTopicLength(uint16_t maxTopicLength);
   AsyncMqttClient& setCredentials(const char* username, const char* password = nullptr);
-  AsyncMqttClient& setWill(const char* topic, uint8_t qos, bool retain, const char* payload = nullptr, size_t length = 0);
-  AsyncMqttClient& setServer(IPAddress ip, uint16_t port);
+  AsyncMqttClient& setWill(const char* topic, MQTTQOS qos, bool retain, const char* payload = nullptr, size_t length = 0);
+  AsyncMqttClient& setServer(const IPAddress& ip, uint16_t port);
   AsyncMqttClient& setServer(const char* host, uint16_t port);
 #if ASYNC_TCP_SSL_ENABLED
   AsyncMqttClient& setSecure(bool secure);
   AsyncMqttClient& addServerFingerprint(const uint8_t* fingerprint);
 #endif
 
-  AsyncMqttClient& onConnect(AsyncMqttClientInternals::OnConnectUserCallback callback);
-  AsyncMqttClient& onDisconnect(AsyncMqttClientInternals::OnDisconnectUserCallback callback);
-  AsyncMqttClient& onSubscribe(AsyncMqttClientInternals::OnSubscribeUserCallback callback);
-  AsyncMqttClient& onUnsubscribe(AsyncMqttClientInternals::OnUnsubscribeUserCallback callback);
-  AsyncMqttClient& onMessage(AsyncMqttClientInternals::OnMessageUserCallback callback);
-  AsyncMqttClient& onPublish(AsyncMqttClientInternals::OnPublishUserCallback callback);
+  AsyncMqttClient& onConnect(const AsyncMqttClientInternals::OnConnectUserCallback& callback);
+  AsyncMqttClient& onDisconnect(const AsyncMqttClientInternals::OnDisconnectUserCallback& callback);
+  AsyncMqttClient& onSubscribe(const AsyncMqttClientInternals::OnSubscribeUserCallback& callback);
+  AsyncMqttClient& onUnsubscribe(const AsyncMqttClientInternals::OnUnsubscribeUserCallback& callback);
+  AsyncMqttClient& onMessage(const AsyncMqttClientInternals::OnMessageUserCallback& callback);
+  AsyncMqttClient& onPublish(const AsyncMqttClientInternals::OnPublishUserCallback& callback);
 
   bool connected() const;
-  void connect();
+  Error connect();
   void disconnect(bool force = false);
-  uint16_t subscribe(const char* topic, uint8_t qos);
+  uint16_t subscribe(const char* topic, MQTTQOS qos);
   uint16_t unsubscribe(const char* topic);
-  uint16_t publish(const char* topic, uint8_t qos, bool retain, const char* payload = nullptr, size_t length = 0, bool dup = false, uint16_t message_id = 0);
+  uint16_t publish(const char* topic, MQTTQOS qos, bool retain, const char* payload = nullptr, size_t length = 0, bool dup = false, uint16_t message_id = 0);
 
   const char* getClientId();
 
@@ -107,7 +120,7 @@ class AsyncMqttClient {
   const char* _willTopic;
   const char* _willPayload;
   uint16_t _willPayloadLength;
-  uint8_t _willQos;
+  MQTTQOS _willQos;
   bool _willRetain;
 
 #if ASYNC_TCP_SSL_ENABLED
@@ -122,29 +135,28 @@ class AsyncMqttClient {
   std::vector<AsyncMqttClientInternals::OnPublishUserCallback> _onPublishUserCallbacks;
 
   AsyncMqttClientInternals::ParsingInformation _parsingInformation;
-  AsyncMqttClientInternals::Packet* _currentParsedPacket;
+  std::unique_ptr<AsyncMqttClientInternals::Packet> _currentParsedPacket;
   uint8_t _remainingLengthBufferPosition;
-  char _remainingLengthBuffer[4];
+  uint8_t _remainingLengthBuffer[4];
 
   uint16_t _nextPacketId;
 
   std::vector<AsyncMqttClientInternals::PendingPubRel> _pendingPubRels;
 
-  std::vector<AsyncMqttClientInternals::PendingAck> _toSendAcks;
+  std::deque<AsyncMqttClientInternals::AckPacket> _toSendAcks;
 
 #ifdef ESP32
   SemaphoreHandle_t _xSemaphore = nullptr;
 #endif
 
   void _clear();
-  void _freeCurrentParsedPacket();
 
   // TCP
   void _onConnect(AsyncClient* client);
   void _onDisconnect(AsyncClient* client);
-  static void _onError(AsyncClient* client, int8_t error);
+  void _onError(AsyncClient* client, int8_t error);
   void _onTimeout(AsyncClient* client, uint32_t time);
-  static void _onAck(AsyncClient* client, size_t len, uint32_t time);
+  void _onAck(AsyncClient* client, size_t len, uint32_t time);
   void _onData(AsyncClient* client, char* data, size_t len);
   void _onPoll(AsyncClient* client);
 
@@ -153,8 +165,8 @@ class AsyncMqttClient {
   void _onConnAck(bool sessionPresent, uint8_t connectReturnCode);
   void _onSubAck(uint16_t packetId, char status);
   void _onUnsubAck(uint16_t packetId);
-  void _onMessage(char* topic, char* payload, uint8_t qos, bool dup, bool retain, size_t len, size_t index, size_t total, uint16_t packetId);
-  void _onPublish(uint16_t packetId, uint8_t qos);
+  void _onMessage(char* topic, char* payload, MQTTQOS qos, bool dup, bool retain, size_t len, size_t index, size_t total, uint16_t packetId);
+  void _onPublish(uint16_t packetId, MQTTQOS qos);
   void _onPubRel(uint16_t packetId);
   void _onPubAck(uint16_t packetId);
   void _onPubRec(uint16_t packetId);

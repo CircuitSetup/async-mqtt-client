@@ -1,24 +1,23 @@
 #pragma once
 
 namespace AsyncMqttClientInternals {
-constexpr struct {
-  const uint8_t RESERVED    = 0;
-  const uint8_t CONNECT     = 1;
-  const uint8_t CONNACK     = 2;
-  const uint8_t PUBLISH     = 3;
-  const uint8_t PUBACK      = 4;
-  const uint8_t PUBREC      = 5;
-  const uint8_t PUBREL      = 6;
-  const uint8_t PUBCOMP     = 7;
-  const uint8_t SUBSCRIBE   = 8;
-  const uint8_t SUBACK      = 9;
-  const uint8_t UNSUBSCRIBE = 10;
-  const uint8_t UNSUBACK    = 11;
-  const uint8_t PINGREQ     = 12;
-  const uint8_t PINGRESP    = 13;
-  const uint8_t DISCONNECT  = 14;
-  const uint8_t RESERVED2   = 1;
-} PacketType;
+enum class PacketType : uint8_t {
+  RESERVED    = 0,
+  CONNECT     = 1,
+  CONNACK     = 2,
+  PUBLISH     = 3,
+  PUBACK      = 4,
+  PUBREC      = 5,
+  PUBREL      = 6,
+  PUBCOMP     = 7,
+  SUBSCRIBE   = 8,
+  SUBACK      = 9,
+  UNSUBSCRIBE = 10,
+  UNSUBACK    = 11,
+  PINGREQ     = 12,
+  PINGRESP    = 13,
+  DISCONNECT  = 14,
+};
 
 constexpr struct {
   const uint8_t CONNECT_RESERVED     = 0x00;
@@ -43,15 +42,4 @@ constexpr struct {
   const uint8_t RESERVED2_RESERVED   = 0x00;
 } HeaderFlag;
 
-constexpr struct {
-  const uint8_t USERNAME      = 0x80;
-  const uint8_t PASSWORD      = 0x40;
-  const uint8_t WILL_RETAIN   = 0x20;
-  const uint8_t WILL_QOS0     = 0x00;
-  const uint8_t WILL_QOS1     = 0x08;
-  const uint8_t WILL_QOS2     = 0x10;
-  const uint8_t WILL          = 0x04;
-  const uint8_t CLEAN_SESSION = 0x02;
-  const uint8_t RESERVED      = 0x00;
-} ConnectFlag;
 }  // namespace AsyncMqttClientInternals
