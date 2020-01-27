@@ -4,8 +4,6 @@
 
 AsyncMqttClient::AsyncMqttClient()
 : _connected(false)
-, _connectPacketNotEnoughSpace(false)
-, _tlsBadFingerprint(false)
 , _lastClientActivity(0)
 , _lastServerActivity(0)
 , _lastPingRequestTime(0)
@@ -30,7 +28,7 @@ AsyncMqttClient::AsyncMqttClient()
 , _nextPacketId(1) {
   _client.onConnect([](void* obj, AsyncClient* c) { (static_cast<AsyncMqttClient*>(obj))->_onConnect(c); }, this);
   _client.onDisconnect([](void* obj, AsyncClient* c) { (static_cast<AsyncMqttClient*>(obj))->_onDisconnect(c); }, this);
-  _client.onError([](void* obj, AsyncClient* c, int8_t error) { (static_cast<AsyncMqttClient*>(obj))->_onError(c, error); }, this);
+  _client.onError([](void* obj, AsyncClient* c, err_t error) { (static_cast<AsyncMqttClient*>(obj))->_onError(c, error); }, this);
   _client.onTimeout([](void* obj, AsyncClient* c, uint32_t time) { (static_cast<AsyncMqttClient*>(obj))->_onTimeout(c, time); }, this);
   _client.onAck([](void* obj, AsyncClient* c, size_t len, uint32_t time) { (static_cast<AsyncMqttClient*>(obj))->_onAck(c, len, time); }, this);
   _client.onData([](void* obj, AsyncClient* c, void* data, size_t len) { (static_cast<AsyncMqttClient*>(obj))->_onData(c, static_cast<char*>(data), len); }, this);
@@ -138,11 +136,14 @@ AsyncMqttClient& AsyncMqttClient::onPublish(const AsyncMqttClientInternals::OnPu
   return *this;
 }
 
+AsyncMqttClient& AsyncMqttClient::onError(const AsyncMqttClientInternals::OnErrorUserCallback& callback) {
+  _onErrorUserCallbacks.push_back(callback);
+  return *this;
+}
+
 void AsyncMqttClient::_clear() {
   _lastPingRequestTime = 0;
   _connected = false;
-  _connectPacketNotEnoughSpace = false;
-  _tlsBadFingerprint = false;
   _currentParsedPacket.reset();
 
   _pendingPubRels.clear();
@@ -174,7 +175,7 @@ void AsyncMqttClient::_onConnect(AsyncClient* client) {
     }
 
     if (!sslFoundFingerprint) {
-      _tlsBadFingerprint = true;
+      _lastError = SERVER_FINGERPRINT_NOT_FOUND;
       _client.close(true);
       return;
     }
@@ -240,7 +241,7 @@ void AsyncMqttClient::_onConnect(AsyncClient* client) {
   neededSpace += remainingLength;
   SEMAPHORE_TAKE();
   if (_client.space() < neededSpace) {
-    _connectPacketNotEnoughSpace = true;
+    for (const auto& callback : _onErrorUserCallbacks) callback(Error::CONNECT_NO_MEMORY);
     _client.close(true);
     SEMAPHORE_GIVE();
     return;
@@ -267,32 +268,47 @@ void AsyncMqttClient::_onConnect(AsyncClient* client) {
     _client.add(reinterpret_cast<const char*>(passwordLengthBytes), 2);
     _client.add(_password, passwordLength);
   }
-  _client.send();
+  if (!_client.send()) {
+    for (const auto& callback : _onErrorUserCallbacks) callback(Error::CONNECTION_FAILED);
+  }
   _lastClientActivity = millis();
   SEMAPHORE_GIVE();
 }
 
 void AsyncMqttClient::_onDisconnect(AsyncClient* client) {
   (void)client;
-  AsyncMqttClientDisconnectReason reason;
-
-  if (_connectPacketNotEnoughSpace) {
-    reason = AsyncMqttClientDisconnectReason::ESP8266_NOT_ENOUGH_SPACE;
-  } else if (_tlsBadFingerprint) {
-    reason = AsyncMqttClientDisconnectReason::TLS_BAD_FINGERPRINT;
-  } else {
-    reason = AsyncMqttClientDisconnectReason::TCP_DISCONNECTED;
-  }
 
   _clear();
 
-  for (const auto& callback : _onDisconnectUserCallbacks) callback(reason);
+  for (const auto& callback : _onDisconnectUserCallbacks) callback();
 }
 
-void AsyncMqttClient::_onError(AsyncClient* client, int8_t error) {
+void AsyncMqttClient::_onError(AsyncClient* client, err_t error) {
   (void)client;
-  (void)error;
-  // _onDisconnect called anyway
+  Error err;
+  switch (error) {
+    case ERR_MEM:        err = Error::TCP_OUT_OF_MEMORY; break;
+    case ERR_BUF:        err = Error::TCP_BUFFER_ERROR; break;
+    case ERR_TIMEOUT:    err = Error::TCP_TIMEOUT; break;
+    case ERR_RTE:        err = Error::TCP_ROUTING; break;
+    case ERR_ABRT:       err = Error::CONNECTION_ABORTED; break;
+    case ERR_RST:        err = Error::CONNECTION_RESET; break;
+    case ERR_CLSD:       err = Error::CONNECTION_CLOSED; break;
+    case ERR_IF:         err = Error::TCP_LOW_LEVEL; break;
+    case -55:            err = Error::DNS_ERROR; break;
+
+    case ERR_ISCONN:
+    case ERR_USE:
+    case ERR_ARG:
+    case ERR_CONN:
+    case ERR_WOULDBLOCK:
+    case ERR_VAL:
+    case ERR_INPROGRESS:
+    case ERR_OK:
+    default:             err = Error::TCP_UNKNOWN; break;
+  }
+
+  for (const auto& callback : _onErrorUserCallbacks) callback(err);
 }
 
 void AsyncMqttClient::_onTimeout(AsyncClient* client, uint32_t time) {
@@ -407,14 +423,30 @@ void AsyncMqttClient::_onPingResp() {
 }
 
 void AsyncMqttClient::_onConnAck(bool sessionPresent, uint8_t connectReturnCode) {
-  (void)sessionPresent;
   _currentParsedPacket.reset();
 
-  if (connectReturnCode == 0) {
-    _connected = true;
-    for (const auto& callback : _onConnectUserCallbacks) callback(sessionPresent);
-  } else {
-    // Callbacks are handled by the ondisconnect function which is called from the AsyncTcp lib
+  switch (AsyncMqttClientInternals::ConnAckReturn(connectReturnCode)) {
+    case AsyncMqttClientInternals::ConnAckReturn::ACCEPTED:
+      _connected = true;
+      for (const auto& callback : _onConnectUserCallbacks) callback(sessionPresent);
+      break;
+    case AsyncMqttClientInternals::ConnAckReturn::UNACCEPTABLE_VERSION:
+      for (const auto& callback : _onErrorUserCallbacks) callback(Error::UNSUPPORTED_SERVER_VERSION);
+      break;
+    case AsyncMqttClientInternals::ConnAckReturn::IDENTIFIER_REJECTED:
+      for (const auto& callback : _onErrorUserCallbacks) callback(Error::IDENTIFIER_REJECTED);
+      break;
+    case AsyncMqttClientInternals::ConnAckReturn::SERVER_UNAVAILABLE:
+      for (const auto& callback : _onErrorUserCallbacks) callback(Error::SERVER_UNAVAILABLE);
+      break;
+    case AsyncMqttClientInternals::ConnAckReturn::NOT_AUTHORIZED:
+      for (const auto& callback : _onErrorUserCallbacks) callback(Error::NOT_AUTHORIZED);
+      break;
+
+    case AsyncMqttClientInternals::ConnAckReturn::BAD_USERNAME_OR_PASSWORD:
+    default:
+      for (const auto& callback : _onErrorUserCallbacks) callback(Error::PROTOCOL_ERROR);
+      break;
   }
 }
 
@@ -576,7 +608,7 @@ bool AsyncMqttClient::connected() const {
   return _connected;
 }
 
-AsyncMqttClient::Error AsyncMqttClient::connect() {
+Error AsyncMqttClient::connect() {
   if (_connected) return Error::ALREADY_CONNECTED;
 
   bool connectResult;

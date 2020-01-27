@@ -26,7 +26,7 @@
 #include "AsyncMqttClient/MessageProperties.hpp"
 #include "AsyncMqttClient/Helpers.hpp"
 #include "AsyncMqttClient/Callbacks.hpp"
-#include "AsyncMqttClient/DisconnectReasons.hpp"
+#include "AsyncMqttClient/Error.hpp"
 #include "AsyncMqttClient/Storage.hpp"
 #include "AsyncMqttClient/QOS.hpp"
 
@@ -51,17 +51,6 @@
 
 class AsyncMqttClient {
  public:
-    enum class ConnectionState : uint8_t {
-        NOT_CONNECTED,
-        CONNECTED,
-
-    };
-    enum class Error : uint8_t {
-        OK,
-        ALREADY_CONNECTED,
-        CONNECTION_FAILED
-    };
-
   AsyncMqttClient();
   ~AsyncMqttClient();
 
@@ -83,6 +72,7 @@ class AsyncMqttClient {
   AsyncMqttClient& onUnsubscribe(const AsyncMqttClientInternals::OnUnsubscribeUserCallback& callback);
   AsyncMqttClient& onMessage(const AsyncMqttClientInternals::OnMessageUserCallback& callback);
   AsyncMqttClient& onPublish(const AsyncMqttClientInternals::OnPublishUserCallback& callback);
+  AsyncMqttClient& onError(const AsyncMqttClientInternals::OnErrorUserCallback& callback);
 
   bool connected() const;
   Error connect();
@@ -97,8 +87,6 @@ class AsyncMqttClient {
   AsyncClient _client;
 
   bool _connected;
-  bool _connectPacketNotEnoughSpace;
-  bool _tlsBadFingerprint;
   uint32_t _lastClientActivity;
   uint32_t _lastServerActivity;
   uint32_t _lastPingRequestTime;
@@ -131,6 +119,7 @@ class AsyncMqttClient {
   std::vector<AsyncMqttClientInternals::OnUnsubscribeUserCallback> _onUnsubscribeUserCallbacks;
   std::vector<AsyncMqttClientInternals::OnMessageUserCallback> _onMessageUserCallbacks;
   std::vector<AsyncMqttClientInternals::OnPublishUserCallback> _onPublishUserCallbacks;
+  std::vector<AsyncMqttClientInternals::OnErrorUserCallback> _onErrorUserCallbacks;
 
   AsyncMqttClientInternals::ParsingInformation _parsingInformation;
   std::unique_ptr<AsyncMqttClientInternals::Packet> _currentParsedPacket;
@@ -152,7 +141,7 @@ class AsyncMqttClient {
   // TCP
   void _onConnect(AsyncClient* client);
   void _onDisconnect(AsyncClient* client);
-  void _onError(AsyncClient* client, int8_t error);
+  void _onError(AsyncClient* client, err_t error);
   void _onTimeout(AsyncClient* client, uint32_t time);
   void _onAck(AsyncClient* client, size_t len, uint32_t time);
   void _onData(AsyncClient* client, char* data, size_t len);

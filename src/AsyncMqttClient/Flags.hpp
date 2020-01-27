@@ -18,6 +18,14 @@ enum class PacketType : uint8_t {
   PINGRESP    = 13,
   DISCONNECT  = 14,
 };
+enum class ConnAckReturn : uint8_t {
+  ACCEPTED = 0,
+  UNACCEPTABLE_VERSION = 1,
+  IDENTIFIER_REJECTED = 2,
+  SERVER_UNAVAILABLE = 3,
+  BAD_USERNAME_OR_PASSWORD = 4,
+  NOT_AUTHORIZED = 5
+};
 
 constexpr struct {
   const uint8_t CONNECT_RESERVED     = 0x00;
