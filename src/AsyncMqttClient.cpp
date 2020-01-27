@@ -1,5 +1,6 @@
 #include "AsyncMqttClient.hpp"
 #include "AsyncMqttClient/Headers.hpp"
+#include <lwip/tcpbase.h>
 #include <memory>
 
 AsyncMqttClient::AsyncMqttClient()
@@ -247,25 +248,25 @@ void AsyncMqttClient::_onConnect(AsyncClient* client) {
     return;
   }
 
-  _client.add(fixedHeader.bytes, fixedHeader.getHeaderSize());
+  _client.add(fixedHeader.bytes, fixedHeader.getHeaderSize(), TCP_WRITE_FLAG_COPY);
   // Using a sendbuffer to fix bug setwill on SSL not working
 
-  _client.add(reinterpret_cast<char*>(&connectHeader), sizeof(connectHeader));
-  _client.add(reinterpret_cast<const char*>(clientIdLengthBytes), 2);
-  _client.add(_clientId, clientIdLength);
+  _client.add(reinterpret_cast<char*>(&connectHeader), sizeof(connectHeader), TCP_WRITE_FLAG_COPY);
+  _client.add(reinterpret_cast<const char*>(clientIdLengthBytes), 2, TCP_WRITE_FLAG_COPY);
+  _client.add(_clientId, clientIdLength, TCP_WRITE_FLAG_COPY);
   if (_willTopic != nullptr) {
-    _client.add(reinterpret_cast<const char*>(willTopicLengthBytes), 2);
+    _client.add(reinterpret_cast<const char*>(willTopicLengthBytes), 2, TCP_WRITE_FLAG_COPY);
     _client.add(_willTopic, willTopicLength);
 
-    _client.add(reinterpret_cast<const char*>(willPayloadLengthBytes), 2);
+    _client.add(reinterpret_cast<const char*>(willPayloadLengthBytes), 2, TCP_WRITE_FLAG_COPY);
     if (_willPayload != nullptr) _client.add(_willPayload, willPayloadLength);
   }
   if (_username != nullptr) {
-    _client.add(reinterpret_cast<const char*>(usernameLengthBytes), 2);
+    _client.add(reinterpret_cast<const char*>(usernameLengthBytes), 2, TCP_WRITE_FLAG_COPY);
     _client.add(_username, usernameLength);
   }
   if (_password != nullptr) {
-    _client.add(reinterpret_cast<const char*>(passwordLengthBytes), 2);
+    _client.add(reinterpret_cast<const char*>(passwordLengthBytes), 2, TCP_WRITE_FLAG_COPY);
     _client.add(_password, passwordLength);
   }
   if (!_client.send()) {
@@ -554,7 +555,7 @@ bool AsyncMqttClient::_sendPing() {
     return false;
   }
 
-  _client.add(header.bytes, 2);
+  _client.add(header.bytes, 2, TCP_WRITE_FLAG_COPY);
   _client.send();
   _lastPingRequestTime = _lastClientActivity = millis();
 
@@ -568,7 +569,7 @@ void AsyncMqttClient::_sendAcks() {
   SEMAPHORE_TAKE();
 
   while (_client.space() >= neededAckSpace && !_toSendAcks.empty()) {
-    _client.add(reinterpret_cast<const char*>(&_toSendAcks.front()), neededAckSpace);
+    _client.add(reinterpret_cast<const char*>(&_toSendAcks.front()), neededAckSpace, TCP_WRITE_FLAG_COPY);
     _client.send();
     _toSendAcks.pop_front();
     _lastClientActivity = millis();
@@ -587,7 +588,7 @@ bool AsyncMqttClient::_sendDisconnect() {
 
   AsyncMqttClientInternals::FixedHeader fixedHeader{AsyncMqttClientInternals::PacketType::DISCONNECT, AsyncMqttClientInternals::HeaderFlag.DISCONNECT_RESERVED, 0};
 
-  _client.add(fixedHeader.bytes, 2);
+  _client.add(fixedHeader.bytes, 2, TCP_WRITE_FLAG_COPY);
   _client.send();
   _client.close(true);
 
@@ -670,11 +671,11 @@ uint16_t AsyncMqttClient::subscribe(const char* topic, MQTTQOS qos) {
   packetIdBytes[0] = packetId >> 8u;
   packetIdBytes[1] = packetId & 0xFFu;
 
-  _client.add(fixedHeader.bytes, fixedHeader.getHeaderSize());
-  _client.add(reinterpret_cast<const char*>(packetIdBytes), 2);
-  _client.add(reinterpret_cast<const char*>(topicLengthBytes), 2);
-  _client.add(topic, topicLength);
-  _client.add(reinterpret_cast<const char*>(qosByte), 1);
+  _client.add(fixedHeader.bytes, fixedHeader.getHeaderSize(), TCP_WRITE_FLAG_COPY);
+  _client.add(reinterpret_cast<const char*>(packetIdBytes), 2, TCP_WRITE_FLAG_COPY);
+  _client.add(reinterpret_cast<const char*>(topicLengthBytes), 2, TCP_WRITE_FLAG_COPY);
+  _client.add(topic, topicLength, TCP_WRITE_FLAG_COPY);
+  _client.add(reinterpret_cast<const char*>(qosByte), 1, TCP_WRITE_FLAG_COPY);
   _client.send();
   _lastClientActivity = millis();
 
@@ -704,10 +705,10 @@ uint16_t AsyncMqttClient::unsubscribe(const char* topic) {
   packetIdBytes[0] = packetId >> 8u;
   packetIdBytes[1] = packetId & 0xFFu;
 
-  _client.add(fixedHeader.bytes, fixedHeader.getHeaderSize());
-  _client.add(reinterpret_cast<const char*>(packetIdBytes), 2);
-  _client.add(reinterpret_cast<const char*>(topicLengthBytes), 2);
-  _client.add(topic, topicLength);
+  _client.add(fixedHeader.bytes, fixedHeader.getHeaderSize(), TCP_WRITE_FLAG_COPY);
+  _client.add(reinterpret_cast<const char*>(packetIdBytes), 2, TCP_WRITE_FLAG_COPY);
+  _client.add(reinterpret_cast<const char*>(topicLengthBytes), 2, TCP_WRITE_FLAG_COPY);
+  _client.add(topic, topicLength, TCP_WRITE_FLAG_COPY);
   _client.send();
   _lastClientActivity = millis();
 
@@ -757,11 +758,11 @@ uint16_t AsyncMqttClient::publish(const char* topic, MQTTQOS qos, bool retain, c
     packetIdBytes[1] = packetId & 0xFFu;
   }
 
-  _client.add(fixedHeader.bytes, fixedHeader.getHeaderSize());
-  _client.add(reinterpret_cast<const char*>(topicLengthBytes), 2);
-  _client.add(topic, topicLength);
-  if (qos != 0) _client.add(reinterpret_cast<const char*>(packetIdBytes), 2);
-  if (payload != nullptr) _client.add(payload, payloadLength);
+  _client.add(fixedHeader.bytes, fixedHeader.getHeaderSize(), TCP_WRITE_FLAG_COPY);
+  _client.add(reinterpret_cast<const char*>(topicLengthBytes), 2, TCP_WRITE_FLAG_COPY);
+  _client.add(topic, topicLength, TCP_WRITE_FLAG_COPY);
+  if (qos != 0) _client.add(reinterpret_cast<const char*>(packetIdBytes), 2, TCP_WRITE_FLAG_COPY);
+  if (payload != nullptr) _client.add(payload, payloadLength, TCP_WRITE_FLAG_COPY);
   _client.send();
   _lastClientActivity = millis();
 
