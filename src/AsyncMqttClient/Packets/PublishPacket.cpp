@@ -81,6 +81,7 @@ void PublishPacket::parsePayload(uint8_t* data, size_t len, size_t* currentByteP
 
   if (_payloadBytesRead == _payloadLength) {
     _parsingInformation->bufferState = BufferState::NONE;
+    _parsingInformation->topicBuffer.clear();
     if (!_ignore) _completeCallback(_packetId, _qos);
   }
 }
