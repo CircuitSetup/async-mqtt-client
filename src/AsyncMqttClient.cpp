@@ -401,7 +401,7 @@ void AsyncMqttClient::_onData(AsyncClient* client, char* cdata, size_t len) {
         }
         break;
       case AsyncMqttClientInternals::BufferState::DATA:
-        _currentParsedPacket->parseData(data, len, &currentBytePosition);
+        _currentParsedPacket->parseData(data, len, currentBytePosition);
         break;
       default:
         currentBytePosition = len;

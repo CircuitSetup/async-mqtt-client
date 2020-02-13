@@ -15,37 +15,37 @@ SubUnsubAckPacket::SubUnsubAckPacket(ParsingInformation* parsingInformation, OnS
 
 SubUnsubAckPacket::~SubUnsubAckPacket() = default;
 
-void SubUnsubAckPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosition) {
+void SubUnsubAckPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosition) {
   (void)len;
 
   if (_bytePosition == POS_PACKET_ID_HIGH) {
-    _packetId = data[*currentBytePosition] << 8u;
+    _packetId = data[currentBytePosition] << 8u;
     _bytePosition++;
-    (*currentBytePosition)++;
+    currentBytePosition++;
   } else if (_bytePosition == POS_PACKET_ID_LOW) {
-    _packetId |= data[*currentBytePosition];
+    _packetId |= data[currentBytePosition];
     _bytePosition++;
-    (*currentBytePosition)++;
+    currentBytePosition++;
   } else if (_bytePosition >= POS_PROPERTIES && !(propertyLengthRead && propertiesLength == properties.size())) {
     if (propertyLengthRead) {
-      auto toCopy = std::min(len - *currentBytePosition, propertiesLength - properties.size());
-      properties.insert(properties.end(), data + *currentBytePosition, data + *currentBytePosition + toCopy);
+      auto toCopy = std::min(len - currentBytePosition, propertiesLength - properties.size());
+      properties.insert(properties.end(), data + currentBytePosition, data + currentBytePosition + toCopy);
 
       _bytePosition += toCopy;
-      (*currentBytePosition) += toCopy;
+      currentBytePosition += toCopy;
     } else {
       auto byteNr = _bytePosition - POS_PROPERTIES;
       auto shift = 7 * byteNr;
-      propertiesLength |= (data[*currentBytePosition] & 0x7Fu) << shift;
-      if ((data[*currentBytePosition] & 0x80u) == 0) {
+      propertiesLength |= (data[currentBytePosition] & 0x7Fu) << shift;
+      if ((data[currentBytePosition] & 0x80u) == 0) {
         propertyLengthRead = true;
       }
 
       _bytePosition++;
-      (*currentBytePosition)++;
+      currentBytePosition++;
     }
   } else {
-    auto reason = static_cast<SubAckReason>(data[(*currentBytePosition)++]);
+    auto reason = static_cast<SubAckReason>(data[currentBytePosition++]);
 
     _parsingInformation->bufferState = BufferState::NONE;
     Properties props{std::move(properties)};

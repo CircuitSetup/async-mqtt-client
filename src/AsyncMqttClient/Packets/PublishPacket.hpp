@@ -23,7 +23,7 @@ class PublishPacket : public Packet {
   explicit PublishPacket(ParsingInformation* parsingInformation, OnMessageInternalCallback dataCallback, OnPublishInternalCallback completeCallback);
   ~PublishPacket() override;
 
-  void parseData(uint8_t* data, size_t len, size_t* currentBytePosition) override;
+  void parseData(uint8_t* data, size_t len, size_t& currentBytePosition) override;
 
  private:
   ParsingInformation* _parsingInformation;

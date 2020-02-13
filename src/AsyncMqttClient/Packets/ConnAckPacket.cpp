@@ -16,23 +16,24 @@ ConnAckPacket::ConnAckPacket(ParsingInformation* parsingInformation, OnConnAckIn
 
 ConnAckPacket::~ConnAckPacket() = default;
 
-void ConnAckPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosition) {
+void ConnAckPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosition) {
   (void)len;
   if (_bytePosition == POS_FLAGS) {
-    _sessionPresent = data[*currentBytePosition] & 0x80u;
+    _sessionPresent = data[currentBytePosition] & 0x80u;
     _bytePosition++;
-    (*currentBytePosition)++;
+    currentBytePosition++;
   } else if (_bytePosition == POS_REASON) {
-    _reason = AsyncMqttClientInternals::ConnectReason(data[*currentBytePosition]);
+    _reason = AsyncMqttClientInternals::ConnectReason(data[currentBytePosition]);
     _bytePosition++;
-    (*currentBytePosition)++;
+  bool propertyLengthRead;
+    currentBytePosition++;
   } else if (_bytePosition >= POS_PROPERTIES) {
     if (propertyLengthRead) {
-      auto toCopy = std::min(len - *currentBytePosition, propertiesLength - properties.size());
-      properties.insert(properties.end(), data + *currentBytePosition, data + *currentBytePosition + toCopy);
+      auto toCopy = std::min(len - currentBytePosition, propertiesLength - properties.size());
+      properties.insert(properties.end(), data + currentBytePosition, data + currentBytePosition + toCopy);
 
       _bytePosition += toCopy;
-      (*currentBytePosition) += toCopy;
+      currentBytePosition += toCopy;
 
       if (propertiesLength == properties.size()) {
         _parsingInformation->bufferState = BufferState::NONE;
@@ -42,13 +43,13 @@ void ConnAckPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosi
     } else {
       auto byteNr = _bytePosition - POS_PROPERTIES;
       auto shift = 7 * byteNr;
-      propertiesLength |= (data[*currentBytePosition] & 0x7Fu) << shift;
-      if ((data[*currentBytePosition] & 0x80u) == 0) {
+      propertiesLength |= (data[currentBytePosition] & 0x7Fu) << shift;
+      if ((data[currentBytePosition] & 0x80u) == 0) {
         propertyLengthRead = true;
       }
 
       _bytePosition++;
-      (*currentBytePosition)++;
+      currentBytePosition++;
     }
   }
 }

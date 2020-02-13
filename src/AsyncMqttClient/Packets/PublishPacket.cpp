@@ -38,10 +38,10 @@ PublishPacket::PublishPacket(ParsingInformation* parsingInformation, OnMessageIn
 
 PublishPacket::~PublishPacket() = default;
 
-void PublishPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosition) {
+void PublishPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosition) {
   (void)len;
 
-  uint8_t currentByte = data[(*currentBytePosition)++];
+  uint8_t currentByte = data[currentBytePosition++];
   switch (state) {
     case ParsingState::TOPIC_NAME_LENGTH_HIGH:
       _topicLength = currentByte << 8u;
@@ -101,14 +101,14 @@ void PublishPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosi
       }
       break;
     case ParsingState::PAYLOAD:
-      size_t remainToRead = len - (*currentBytePosition);
+      size_t remainToRead = len - currentBytePosition;
       if (_payloadBytesRead + remainToRead > _payloadLength) remainToRead = _payloadLength - _payloadBytesRead;
 
       if (!_ignore) {
-        _dataCallback(reinterpret_cast<char*>(_parsingInformation->topicBuffer.data()), data + (*currentBytePosition), _qos, _dup, _retain, props, remainToRead, _payloadBytesRead, _payloadLength, _packetId);
+        _dataCallback(reinterpret_cast<char*>(_parsingInformation->topicBuffer.data()), data + currentBytePosition, _qos, _dup, _retain, props, remainToRead, _payloadBytesRead, _payloadLength, _packetId);
       }
       _payloadBytesRead += remainToRead;
-      (*currentBytePosition) += remainToRead;
+      currentBytePosition += remainToRead;
 
       if (_payloadBytesRead == _payloadLength) {
         _parsingInformation->bufferState = BufferState::NONE;

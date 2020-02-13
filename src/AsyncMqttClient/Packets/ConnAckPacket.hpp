@@ -15,7 +15,7 @@ class ConnAckPacket : public Packet {
   explicit ConnAckPacket(ParsingInformation* parsingInformation, OnConnAckInternalCallback callback);
   ~ConnAckPacket() override;
 
-  void parseData(uint8_t* data, size_t len, size_t* currentBytePosition) override;
+  void parseData(uint8_t* data, size_t len, size_t& currentBytePosition) override;
 
  private:
   ParsingInformation* _parsingInformation;
