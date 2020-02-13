@@ -5,12 +5,16 @@
 #include "WString.h"
 #include "../../tl/optional.hpp"
 
+namespace AsyncMqttClientInternals {
+class PublishPacket;
+}
 class Properties {
     using buffer_t = std::vector<uint8_t>;
 
     buffer_t buffer;
 
     friend class AsyncMqttClient;
+    friend class AsyncMqttClientInternals::PublishPacket;
 
 public:
     using const_itr_t = buffer_t::const_iterator;

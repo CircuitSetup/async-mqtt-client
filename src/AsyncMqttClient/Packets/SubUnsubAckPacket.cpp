@@ -15,7 +15,7 @@ SubUnsubAckPacket::SubUnsubAckPacket(ParsingInformation* parsingInformation, OnS
 
 SubUnsubAckPacket::~SubUnsubAckPacket() = default;
 
-void SubUnsubAckPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) {
+void SubUnsubAckPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosition) {
   (void)len;
 
   if (_bytePosition == POS_PACKET_ID_HIGH) {
@@ -26,17 +26,13 @@ void SubUnsubAckPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* c
     _packetId |= data[*currentBytePosition];
     _bytePosition++;
     (*currentBytePosition)++;
-  } else if (_bytePosition >= POS_PROPERTIES) {
+  } else if (_bytePosition >= POS_PROPERTIES && !(propertyLengthRead && propertiesLength == properties.size())) {
     if (propertyLengthRead) {
       auto toCopy = std::min(len - *currentBytePosition, propertiesLength - properties.size());
       properties.insert(properties.end(), data + *currentBytePosition, data + *currentBytePosition + toCopy);
 
       _bytePosition += toCopy;
       (*currentBytePosition) += toCopy;
-
-      if (propertiesLength == properties.size()) {
-        _parsingInformation->bufferState = BufferState::PAYLOAD;
-      }
     } else {
       auto byteNr = _bytePosition - POS_PROPERTIES;
       auto shift = 7 * byteNr;
@@ -48,15 +44,11 @@ void SubUnsubAckPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* c
       _bytePosition++;
       (*currentBytePosition)++;
     }
+  } else {
+    auto reason = static_cast<SubAckReason>(data[(*currentBytePosition)++]);
+
+    _parsingInformation->bufferState = BufferState::NONE;
+    Properties props{std::move(properties)};
+    _callback(_packetId, reason, props);
   }
-}
-
-void SubUnsubAckPacket::parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) {
-  (void)len;
-  auto reason = static_cast<SubAckReason>(data[(*currentBytePosition)++]);
-
-
-  _parsingInformation->bufferState = BufferState::NONE;
-  Properties props{std::move(properties)};
-  _callback(_packetId, reason, props);
 }

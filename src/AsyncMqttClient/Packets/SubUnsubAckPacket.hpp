@@ -14,8 +14,7 @@ class SubUnsubAckPacket : public Packet {
   explicit SubUnsubAckPacket(ParsingInformation* parsingInformation, OnSubUnsubAckInternalCallback callback);
   ~SubUnsubAckPacket() override;
 
-  void parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) override;
-  void parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) override;
+  void parseData(uint8_t* data, size_t len, size_t* currentBytePosition) override;
 
  private:
   ParsingInformation* _parsingInformation;

@@ -392,7 +392,7 @@ void AsyncMqttClient::_onData(AsyncClient* client, char* cdata, size_t len) {
           _parsingInformation.size = AsyncMqttClientInternals::Helpers::decodeVariableByteInteger(_remainingLengthBuffer);
           _remainingLengthBufferPosition = 0;
           if (_parsingInformation.size > 0) {
-            _parsingInformation.bufferState = AsyncMqttClientInternals::BufferState::VARIABLE_HEADER;
+            _parsingInformation.bufferState = AsyncMqttClientInternals::BufferState::DATA;
           } else {
             // PINGRESP is a special case where it has no variable header, so the packet ends right here
             _parsingInformation.bufferState = AsyncMqttClientInternals::BufferState::NONE;
@@ -400,11 +400,8 @@ void AsyncMqttClient::_onData(AsyncClient* client, char* cdata, size_t len) {
           }
         }
         break;
-      case AsyncMqttClientInternals::BufferState::VARIABLE_HEADER:
-        _currentParsedPacket->parseVariableHeader(data, len, &currentBytePosition);
-        break;
-      case AsyncMqttClientInternals::BufferState::PAYLOAD:
-        _currentParsedPacket->parsePayload(data, len, &currentBytePosition);
+      case AsyncMqttClientInternals::BufferState::DATA:
+        _currentParsedPacket->parseData(data, len, &currentBytePosition);
         break;
       default:
         currentBytePosition = len;

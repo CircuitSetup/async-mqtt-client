@@ -16,7 +16,7 @@ ConnAckPacket::ConnAckPacket(ParsingInformation* parsingInformation, OnConnAckIn
 
 ConnAckPacket::~ConnAckPacket() = default;
 
-void ConnAckPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) {
+void ConnAckPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosition) {
   (void)len;
   if (_bytePosition == POS_FLAGS) {
     _sessionPresent = data[*currentBytePosition] & 0x80u;
@@ -51,10 +51,4 @@ void ConnAckPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* curre
       (*currentBytePosition)++;
     }
   }
-}
-
-void ConnAckPacket::parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) {
-  (void)data;
-  (void)len;
-  (void)currentBytePosition;
 }

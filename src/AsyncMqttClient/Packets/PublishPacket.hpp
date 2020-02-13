@@ -15,15 +15,15 @@ class PublishPacket : public Packet {
     PACKET_IDENTIFIER_HIGH,
     PACKET_IDENTIFIER_LOW,
     PROPERTIES_LENGTH,
-    PROPERTIES
+    PROPERTIES,
+    PAYLOAD
   };
 
  public:
   explicit PublishPacket(ParsingInformation* parsingInformation, OnMessageInternalCallback dataCallback, OnPublishInternalCallback completeCallback);
   ~PublishPacket() override;
 
-  void parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) override;
-  void parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) override;
+  void parseData(uint8_t* data, size_t len, size_t* currentBytePosition) override;
 
  private:
   ParsingInformation* _parsingInformation;
@@ -44,7 +44,7 @@ class PublishPacket : public Packet {
   uint16_t _packetId;
 
   uint32_t propertiesLength;
-  std::vector<uint8_t> properties;
+  Properties props{{}};
 
   uint32_t _payloadLength;
   uint32_t _payloadBytesRead;

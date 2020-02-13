@@ -11,13 +11,7 @@ PingRespPacket::PingRespPacket(ParsingInformation* parsingInformation, OnPingRes
 
 PingRespPacket::~PingRespPacket() = default;
 
-void PingRespPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) {
-  (void)data;
-  (void)len;
-  (void)currentBytePosition;
-}
-
-void PingRespPacket::parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) {
+void PingRespPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosition) {
   (void)data;
   (void)len;
   (void)currentBytePosition;

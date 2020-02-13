@@ -16,7 +16,7 @@ AckPacket::AckPacket(ParsingInformation* parsingInformation, OnAckInternalCallba
 
 AckPacket::~AckPacket() = default;
 
-void AckPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) {
+void AckPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosition) {
   (void)len;
 
   if (_bytePosition == POS_PACKET_ID_HIGH) {
@@ -61,10 +61,4 @@ void AckPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* currentBy
       (*currentBytePosition)++;
     }
   }
-}
-
-void AckPacket::parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) {
-  (void)data;
-  (void)len;
-  (void)currentBytePosition;
 }

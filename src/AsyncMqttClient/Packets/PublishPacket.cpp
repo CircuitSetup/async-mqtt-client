@@ -38,7 +38,7 @@ PublishPacket::PublishPacket(ParsingInformation* parsingInformation, OnMessageIn
 
 PublishPacket::~PublishPacket() = default;
 
-void PublishPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* currentBytePosition) {
+void PublishPacket::parseData(uint8_t* data, size_t len, size_t* currentBytePosition) {
   (void)len;
 
   uint8_t currentByte = data[(*currentBytePosition)++];
@@ -90,16 +90,31 @@ void PublishPacket::parseVariableHeader(uint8_t* data, size_t len, size_t* curre
           _preparePayloadHandling();
         } else {
           state = ParsingState::PROPERTIES;
-          if (!_ignore) properties.reserve(propertiesLength);
+          if (!_ignore) props.buffer.reserve(propertiesLength);
         }
       }
       break;
     case ParsingState::PROPERTIES:
-      if (!_ignore && properties.data() != nullptr) properties.push_back(currentByte);
+      if (!_ignore && props.buffer.data() != nullptr) props.buffer.push_back(currentByte);
       if (++bytePosition == propertiesLength) {
         _preparePayloadHandling();
       }
       break;
+    case ParsingState::PAYLOAD:
+      size_t remainToRead = len - (*currentBytePosition);
+      if (_payloadBytesRead + remainToRead > _payloadLength) remainToRead = _payloadLength - _payloadBytesRead;
+
+      if (!_ignore) {
+        _dataCallback(reinterpret_cast<char*>(_parsingInformation->topicBuffer.data()), data + (*currentBytePosition), _qos, _dup, _retain, props, remainToRead, _payloadBytesRead, _payloadLength, _packetId);
+      }
+      _payloadBytesRead += remainToRead;
+      (*currentBytePosition) += remainToRead;
+
+      if (_payloadBytesRead == _payloadLength) {
+        _parsingInformation->bufferState = BufferState::NONE;
+        _parsingInformation->topicBuffer.clear();
+        if (!_ignore) _completeCallback(_packetId, _qos, props);
+      }
   }
 }
 
@@ -113,31 +128,11 @@ void PublishPacket::_preparePayloadHandling() {
   if (payloadLength == 0) {
     _parsingInformation->bufferState = BufferState::NONE;
     if (!_ignore) {
-      Properties prop{std::move(properties)};
-
-      _dataCallback(reinterpret_cast<char*>(_parsingInformation->topicBuffer.data()), nullptr, _qos, _dup, _retain, prop, 0, 0, 0, _packetId);
-      _completeCallback(_packetId, _qos, prop);
+      _dataCallback(reinterpret_cast<char*>(_parsingInformation->topicBuffer.data()), nullptr, _qos, _dup, _retain, props, 0, 0, 0, _packetId);
+      _completeCallback(_packetId, _qos, props);
     }
   } else {
-    _parsingInformation->bufferState = BufferState::PAYLOAD;
+   state = ParsingState::PAYLOAD;
   }
 }
 
-void PublishPacket::parsePayload(uint8_t* data, size_t len, size_t* currentBytePosition) {
-  size_t remainToRead = len - (*currentBytePosition);
-  if (_payloadBytesRead + remainToRead > _payloadLength) remainToRead = _payloadLength - _payloadBytesRead;
-
-  if (!_ignore) {
-    Properties props{std::move(properties)};
-    _dataCallback(reinterpret_cast<char*>(_parsingInformation->topicBuffer.data()), data + (*currentBytePosition), _qos, _dup, _retain, props, remainToRead, _payloadBytesRead, _payloadLength, _packetId);
-  }
-  _payloadBytesRead += remainToRead;
-  (*currentBytePosition) += remainToRead;
-
-  if (_payloadBytesRead == _payloadLength) {
-    _parsingInformation->bufferState = BufferState::NONE;
-    _parsingInformation->topicBuffer.clear();
-    Properties props {std::move(properties)};
-    if (!_ignore) _completeCallback(_packetId, _qos, props);
-  }
-}
