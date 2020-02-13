@@ -1,12 +1,13 @@
 #pragma once
 
 #include "Helpers.hpp"
+#include "QOS.hpp"
 
 namespace AsyncMqttClientInternals {
 struct ConnectHeader {
   uint16_t protocolNameLength = Helpers::bigEndian(4);
   uint8_t protocolName[4] = {'M', 'Q', 'T', 'T'};
-  uint8_t protocolVersion = 4;
+  uint8_t protocolVersion = 5;
   struct Flags {
     bool reserved : 1;
     bool cleanStart : 1;
@@ -21,9 +22,9 @@ struct ConnectHeader {
 } __attribute__((packed));
 
 struct FixedHeader {
-  FixedHeader(PacketType type, uint8_t flags, uint32_t size) : flags(flags), type(type) { Helpers::encodeRemainingLength(size, packetSizeVbi.data()); }
+  FixedHeader(PacketType type, uint8_t flags, uint32_t size) : flags(flags), type(type) { Helpers::encodeVariableByteInteger(size, packetSizeVbi.data()); }
 
-  uint32_t getSize() const { return Helpers::decodeRemainingLength(packetSizeVbi.data()); }
+  uint32_t getSize() const { return Helpers::decodeVariableByteInteger(packetSizeVbi.data()); }
 
   uint8_t getHeaderSize() const {
     uint8_t vbiSize = 1;
@@ -45,5 +46,13 @@ struct FixedHeader {
     char bytes[5];
   };
 };
+
+struct SubscriptionOption {
+  MQTTQOS qos : 2;
+  bool nonLocal : 1;
+  bool retainAsPublished : 1;
+  RetainFlag retainFlag : 2;
+  uint8_t reserved : 2;
+} __attribute__((packed));
 
 } // namespace AsyncMqttClientInternals

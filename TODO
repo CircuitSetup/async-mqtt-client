@@ -1,0 +1,2 @@
+* Implement multi topic filter subscribes
+* Add ability to send Acks with properties and reasons

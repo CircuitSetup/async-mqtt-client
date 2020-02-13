@@ -8,6 +8,16 @@
 
 namespace AsyncMqttClientInternals {
 class PublishPacket : public Packet {
+  enum class ParsingState : uint8_t {
+    TOPIC_NAME_LENGTH_HIGH,
+    TOPIC_NAME_LENGTH_LOW,
+    TOPIC_NAME,
+    PACKET_IDENTIFIER_HIGH,
+    PACKET_IDENTIFIER_LOW,
+    PROPERTIES_LENGTH,
+    PROPERTIES
+  };
+
  public:
   explicit PublishPacket(ParsingInformation* parsingInformation, OnMessageInternalCallback dataCallback, OnPublishInternalCallback completeCallback);
   ~PublishPacket() override;
@@ -20,16 +30,22 @@ class PublishPacket : public Packet {
   OnMessageInternalCallback _dataCallback;
   OnPublishInternalCallback _completeCallback;
 
-  void _preparePayloadHandling(uint32_t payloadLength);
+  void _preparePayloadHandling();
 
   bool _dup;
   MQTTQOS _qos;
   bool _retain;
 
-  uint8_t _bytePosition;
+  ParsingState state = ParsingState::TOPIC_NAME_LENGTH_HIGH;
+  uint32_t bytePosition;
+
   uint16_t _topicLength;
   bool _ignore;
   uint16_t _packetId;
+
+  uint32_t propertiesLength;
+  std::vector<uint8_t> properties;
+
   uint32_t _payloadLength;
   uint32_t _payloadBytesRead;
 };

@@ -23,23 +23,18 @@
 
 #include "AsyncMqttClient/Flags.hpp"
 #include "AsyncMqttClient/ParsingInformation.hpp"
-#include "AsyncMqttClient/MessageProperties.hpp"
 #include "AsyncMqttClient/Helpers.hpp"
 #include "AsyncMqttClient/Callbacks.hpp"
 #include "AsyncMqttClient/Error.hpp"
 #include "AsyncMqttClient/Storage.hpp"
 #include "AsyncMqttClient/QOS.hpp"
 
-#include "AsyncMqttClient/Packets/Packet.hpp"
+#include "AsyncMqttClient/Packets/AckPacket.hpp"
 #include "AsyncMqttClient/Packets/ConnAckPacket.hpp"
+#include "AsyncMqttClient/Packets/Packet.hpp"
 #include "AsyncMqttClient/Packets/PingRespPacket.hpp"
-#include "AsyncMqttClient/Packets/SubAckPacket.hpp"
-#include "AsyncMqttClient/Packets/UnsubAckPacket.hpp"
 #include "AsyncMqttClient/Packets/PublishPacket.hpp"
-#include "AsyncMqttClient/Packets/PubRelPacket.hpp"
-#include "AsyncMqttClient/Packets/PubAckPacket.hpp"
-#include "AsyncMqttClient/Packets/PubRecPacket.hpp"
-#include "AsyncMqttClient/Packets/PubCompPacket.hpp"
+#include "AsyncMqttClient/Packets/SubUnsubAckPacket.hpp"
 
 #if ESP32
 #define SEMAPHORE_TAKE(X) if (xSemaphoreTake(_xSemaphore, 1000 / portTICK_PERIOD_MS) != pdTRUE) { return X; }  // Waits max 1000ms
@@ -77,9 +72,9 @@ class AsyncMqttClient {
   bool connected() const;
   Error connect();
   void disconnect(bool force = false);
-  uint16_t subscribe(const char* topic, MQTTQOS qos);
-  uint16_t unsubscribe(const char* topic);
-  uint16_t publish(const char* topic, MQTTQOS qos, bool retain, const char* payload = nullptr, size_t length = 0, bool dup = false, uint16_t message_id = 0);
+  uint16_t subscribe(const char* topic, MQTTQOS qos = MQTTQOS::QOS0, bool nonLocal = false, bool retainAsPublished = false, AsyncMqttClientInternals::RetainFlag retainFlag = AsyncMqttClientInternals::RetainFlag::ALWAYS_SEND_RETAIN, const Properties* const properties = nullptr);
+  uint16_t unsubscribe(const char* topic, const Properties* properties = nullptr);
+  uint16_t publish(const char* topic, MQTTQOS qos, bool retain, const char* payload = nullptr, size_t length = 0, const Properties* properties = nullptr, bool dup = false, uint16_t message_id = 0);
 
   const char* getClientId();
 
@@ -130,7 +125,7 @@ class AsyncMqttClient {
 
   std::vector<AsyncMqttClientInternals::PendingPubRel> _pendingPubRels;
 
-  std::deque<AsyncMqttClientInternals::AckPacket> _toSendAcks;
+  std::deque<AsyncMqttClientInternals::AckRetPacket> _toSendAcks;
 
 #ifdef ESP32
   SemaphoreHandle_t _xSemaphore = nullptr;
@@ -149,15 +144,15 @@ class AsyncMqttClient {
 
   // MQTT
   void _onPingResp();
-  void _onConnAck(bool sessionPresent, uint8_t connectReturnCode);
-  void _onSubAck(uint16_t packetId, char status);
-  void _onUnsubAck(uint16_t packetId);
-  void _onMessage(char* topic, char* payload, MQTTQOS qos, bool dup, bool retain, size_t len, size_t index, size_t total, uint16_t packetId);
-  void _onPublish(uint16_t packetId, MQTTQOS qos);
-  void _onPubRel(uint16_t packetId);
-  void _onPubAck(uint16_t packetId);
-  void _onPubRec(uint16_t packetId);
-  void _onPubComp(uint16_t packetId);
+  void _onConnAck(bool sessionPresent, AsyncMqttClientInternals::ConnectReason reason, const Properties& properties);
+  void _onSubAck(uint16_t packetId, AsyncMqttClientInternals::SubAckReason reason, const Properties& properties);
+  void _onUnsubAck(uint16_t packetId, AsyncMqttClientInternals::SubAckReason reason, const Properties& properties);
+  void _onMessage(char* topic, uint8_t* payload, MQTTQOS qos, bool dup, bool retain, const Properties& properties, size_t len, size_t index, size_t total, uint16_t packetId);
+  void _onPublish(uint16_t packetId, MQTTQOS qos, const Properties& properties);
+  void _onPubRel(uint16_t packetId, AsyncMqttClientInternals::AckReason reason, const Properties& properties);
+  void _onPubAck(uint16_t packetId, AsyncMqttClientInternals::AckReason reason, const Properties& properties);
+  void _onPubRec(uint16_t packetId, AsyncMqttClientInternals::AckReason reason, const Properties& properties);
+  void _onPubComp(uint16_t packetId, AsyncMqttClientInternals::AckReason reason, const Properties& properties);
 
   bool _sendPing();
   void _sendAcks();
