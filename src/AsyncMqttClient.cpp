@@ -27,7 +27,6 @@ AsyncMqttClient::AsyncMqttClient()
 , _willRetain(false)
 , _parsingInformation{}
 , _currentParsedPacket(nullptr)
-, _remainingLengthBufferPosition(0)
 , _nextPacketId(1) {
   _client.onConnect([](void* obj, AsyncClient* c) { (static_cast<AsyncMqttClient*>(obj))->_onConnect(c); }, this);
   _client.onDisconnect([](void* obj, AsyncClient* c) { (static_cast<AsyncMqttClient*>(obj))->_onDisconnect(c); }, this);
@@ -386,11 +385,7 @@ void AsyncMqttClient::_onData(AsyncClient* client, char* cdata, size_t len) {
         }
         break;
       case AsyncMqttClientInternals::BufferState::REMAINING_LENGTH:
-        currentByte = data[currentBytePosition++];
-        _remainingLengthBuffer[_remainingLengthBufferPosition++] = currentByte;
-        if (currentByte >> 7u == 0) {
-          _parsingInformation.size = AsyncMqttClientInternals::Helpers::decodeVariableByteInteger(_remainingLengthBuffer);
-          _remainingLengthBufferPosition = 0;
+        if (_parsingInformation.readVbi(_parsingInformation.size, data, len, currentBytePosition)) {
           if (_parsingInformation.size > 0) {
             _parsingInformation.bufferState = AsyncMqttClientInternals::BufferState::DATA;
           } else {

@@ -118,8 +118,6 @@ class AsyncMqttClient {
 
   AsyncMqttClientInternals::ParsingInformation _parsingInformation;
   std::unique_ptr<AsyncMqttClientInternals::Packet> _currentParsedPacket;
-  uint8_t _remainingLengthBufferPosition;
-  uint8_t _remainingLengthBuffer[4];
 
   uint16_t _nextPacketId;
 
