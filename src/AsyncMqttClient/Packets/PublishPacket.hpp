@@ -9,11 +9,9 @@
 namespace AsyncMqttClientInternals {
 class PublishPacket : public Packet {
   enum class ParsingState : uint8_t {
-    TOPIC_NAME_LENGTH_HIGH,
-    TOPIC_NAME_LENGTH_LOW,
+    TOPIC_NAME_LENGTH,
     TOPIC_NAME,
-    PACKET_IDENTIFIER_HIGH,
-    PACKET_IDENTIFIER_LOW,
+    PACKET_IDENTIFIER,
     PROPERTIES_LENGTH,
     PROPERTIES,
     PAYLOAD
@@ -36,7 +34,7 @@ class PublishPacket : public Packet {
   MQTTQOS _qos;
   bool _retain;
 
-  ParsingState state = ParsingState::TOPIC_NAME_LENGTH_HIGH;
+  ParsingState state;
   uint32_t bytePosition;
 
   uint16_t _topicLength;

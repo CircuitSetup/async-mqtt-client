@@ -7,9 +7,12 @@
 
 namespace AsyncMqttClientInternals {
 class ConnAckPacket : public Packet {
-  constexpr static size_t POS_FLAGS = 0;
-  constexpr static size_t POS_REASON = 1;
-  constexpr static size_t POS_PROPERTIES = 2;
+  enum class ParsingState : uint8_t {
+    FLAGS,
+    REASON,
+    PROPERTIES_LENGTH,
+    PROPERTIES
+  };
 
  public:
   explicit ConnAckPacket(ParsingInformation* parsingInformation, OnConnAckInternalCallback callback);
@@ -21,13 +24,12 @@ class ConnAckPacket : public Packet {
   ParsingInformation* _parsingInformation;
   OnConnAckInternalCallback _callback;
 
-  uint8_t _bytePosition;
-  bool _sessionPresent;
+  uint8_t _flags;
   AsyncMqttClientInternals::ConnectReason _reason;
 
   uint32_t propertiesLength;
-  bool propertyLengthRead;
   std::vector<uint8_t> properties;
 
+  ParsingState state;
 };
 }  // namespace AsyncMqttClientInternals

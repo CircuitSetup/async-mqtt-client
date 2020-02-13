@@ -7,48 +7,40 @@ using AsyncMqttClientInternals::SubUnsubAckPacket;
 SubUnsubAckPacket::SubUnsubAckPacket(ParsingInformation* parsingInformation, OnSubUnsubAckInternalCallback callback)
 : _parsingInformation(parsingInformation)
 , _callback(std::move(callback))
-, _bytePosition(0)
 , _packetId(0)
 , propertiesLength(0)
-, propertyLengthRead(false) {
+, state(ParsingState::PACKET_IDENTIFIER) {
 }
 
 SubUnsubAckPacket::~SubUnsubAckPacket() = default;
 
 void SubUnsubAckPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosition) {
-  (void)len;
-
-  if (_bytePosition == POS_PACKET_ID_HIGH) {
-    _packetId = data[currentBytePosition] << 8u;
-    _bytePosition++;
-    currentBytePosition++;
-  } else if (_bytePosition == POS_PACKET_ID_LOW) {
-    _packetId |= data[currentBytePosition];
-    _bytePosition++;
-    currentBytePosition++;
-  } else if (_bytePosition >= POS_PROPERTIES && !(propertyLengthRead && propertiesLength == properties.size())) {
-    if (propertyLengthRead) {
+  switch (state) {
+    case ParsingState::PACKET_IDENTIFIER:
+      if (_parsingInformation->read(_packetId, data, len, currentBytePosition))
+        state = ParsingState::PROPERTIES_LENGTH;
+      break;
+    case ParsingState::PROPERTIES_LENGTH:
+      if (_parsingInformation->readVbi(propertiesLength, data, len, currentBytePosition))
+        state = ParsingState::PROPERTIES;
+      break;
+    case ParsingState::PROPERTIES: {
       auto toCopy = std::min(len - currentBytePosition, propertiesLength - properties.size());
       properties.insert(properties.end(), data + currentBytePosition, data + currentBytePosition + toCopy);
 
-      _bytePosition += toCopy;
       currentBytePosition += toCopy;
-    } else {
-      auto byteNr = _bytePosition - POS_PROPERTIES;
-      auto shift = 7 * byteNr;
-      propertiesLength |= (data[currentBytePosition] & 0x7Fu) << shift;
-      if ((data[currentBytePosition] & 0x80u) == 0) {
-        propertyLengthRead = true;
+
+      if (propertiesLength == properties.size()) {
+        state = ParsingState::PAYLOAD;
       }
-
-      _bytePosition++;
-      currentBytePosition++;
+      break;
     }
-  } else {
-    auto reason = static_cast<SubAckReason>(data[currentBytePosition++]);
+    case ParsingState::PAYLOAD:
+      auto reason = static_cast<SubAckReason>(data[currentBytePosition++]);
 
-    _parsingInformation->bufferState = BufferState::NONE;
-    Properties props{std::move(properties)};
-    _callback(_packetId, reason, props);
+      _parsingInformation->bufferState = BufferState::NONE;
+      Properties props{std::move(properties)};
+      _callback(_packetId, reason, props);
+      break;
   }
 }

@@ -7,9 +7,12 @@
 
 namespace AsyncMqttClientInternals {
 class SubUnsubAckPacket : public Packet {
-  constexpr static size_t POS_PACKET_ID_HIGH = 0;
-  constexpr static size_t POS_PACKET_ID_LOW  = 1;
-  constexpr static size_t POS_PROPERTIES     = 2;
+  enum class ParsingState : uint8_t {
+    PACKET_IDENTIFIER,
+    PROPERTIES_LENGTH,
+    PROPERTIES,
+    PAYLOAD
+  };
  public:
   explicit SubUnsubAckPacket(ParsingInformation* parsingInformation, OnSubUnsubAckInternalCallback callback);
   ~SubUnsubAckPacket() override;
@@ -19,12 +22,10 @@ class SubUnsubAckPacket : public Packet {
  private:
   ParsingInformation* _parsingInformation;
   OnSubUnsubAckInternalCallback _callback;
-
-  uint8_t _bytePosition;
   uint16_t _packetId;
 
   uint32_t propertiesLength;
-  bool propertyLengthRead;
   std::vector<uint8_t> properties;
+  ParsingState state;
 };
 }  // namespace AsyncMqttClientInternals
