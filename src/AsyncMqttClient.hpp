@@ -70,6 +70,7 @@ class AsyncMqttClient {
   AsyncMqttClient& onUnsubscribe(AsyncMqttClientInternals::OnUnsubscribeUserCallback callback);
   AsyncMqttClient& onMessage(AsyncMqttClientInternals::OnMessageUserCallback callback);
   AsyncMqttClient& onPublish(AsyncMqttClientInternals::OnPublishUserCallback callback);
+  AsyncMqttClient& onPing(AsyncMqttClientInternals::OnPingUserCallback callback);
 
   bool connected() const;
   void connect();
@@ -120,6 +121,7 @@ class AsyncMqttClient {
   AsyncMqttClientInternals::OnUnsubscribeUserCallback _onUnsubscribeUserCallback;
   AsyncMqttClientInternals::OnMessageUserCallback _onMessageUserCallback;
   AsyncMqttClientInternals::OnPublishUserCallback _onPublishUserCallback;
+  AsyncMqttClientInternals::OnPingUserCallback _onPingUserCallback;
 
   AsyncMqttClientInternals::ParsingInformation _parsingInformation;
   AsyncMqttClientInternals::Packet* _currentParsedPacket;

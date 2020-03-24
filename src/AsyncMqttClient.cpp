@@ -33,6 +33,7 @@ AsyncMqttClient::AsyncMqttClient()
 , _onUnsubscribeUserCallback(nullptr)
 , _onMessageUserCallback(nullptr)
 , _onPublishUserCallback(nullptr)
+, _onPingUserCallback(nullptr)
 , _parsingInformation { .bufferState = AsyncMqttClientInternals::BufferState::NONE }
 , _currentParsedPacket(nullptr)
 , _remainingLengthBufferPosition(0)
@@ -156,6 +157,11 @@ AsyncMqttClient& AsyncMqttClient::onMessage(AsyncMqttClientInternals::OnMessageU
 
 AsyncMqttClient& AsyncMqttClient::onPublish(AsyncMqttClientInternals::OnPublishUserCallback callback) {
   _onPublishUserCallback = callback;
+  return *this;
+}
+
+AsyncMqttClient& AsyncMqttClient::onPing(AsyncMqttClientInternals::OnPingUserCallback callback) {
+  _onPingUserCallback = callback;
   return *this;
 }
 
@@ -499,6 +505,7 @@ void AsyncMqttClient::_onPoll(AsyncClient* client) {
 void AsyncMqttClient::_onPingResp() {
   _freeCurrentParsedPacket();
   _lastPingRequestTime = 0;
+  if (_onPingUserCallback) _onPingUserCallback(true);
 }
 
 void AsyncMqttClient::_onConnAck(bool sessionPresent, uint8_t connectReturnCode) {
@@ -642,6 +649,7 @@ bool AsyncMqttClient::_sendPing() {
   _lastPingRequestTime = millis();
 
   SEMAPHORE_GIVE();
+  if (_onPingUserCallback) _onPingUserCallback(false);
   return true;
 }
 
