@@ -37,7 +37,7 @@ AsyncMqttClient::AsyncMqttClient()
 , _parsingInformation { .bufferState = AsyncMqttClientInternals::BufferState::NONE }
 , _currentParsedPacket(nullptr)
 , _remainingLengthBufferPosition(0)
-, _nextPacketId(1) {
+, _nextPacketId(0) {
   _client.onConnect([](void* obj, AsyncClient* c) { (static_cast<AsyncMqttClient*>(obj))->_onConnect(c); }, this);
   _client.onDisconnect([](void* obj, AsyncClient* c) { (static_cast<AsyncMqttClient*>(obj))->_onDisconnect(c); }, this);
   _client.onError([](void* obj, AsyncClient* c, int8_t error) { (static_cast<AsyncMqttClient*>(obj))->_onError(c, error); }, this);
@@ -710,12 +710,9 @@ bool AsyncMqttClient::_sendDisconnect() {
 }
 
 uint16_t AsyncMqttClient::_getNextPacketId() {
-  uint16_t nextPacketId = _nextPacketId;
-
-  if (_nextPacketId == 65535) _nextPacketId = 0;  // 0 is forbidden
-  _nextPacketId++;
-
-  return nextPacketId;
+  ++_nextPacketId;
+  if (_nextPacketId == 0) ++_nextPacketId;  // 0 is forbidden
+  return _nextPacketId;
 }
 
 bool AsyncMqttClient::connected() const {
