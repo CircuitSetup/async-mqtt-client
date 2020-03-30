@@ -3,7 +3,7 @@
 #include <functional>
 #include <vector>
 
-#include "Arduino.h"
+#include <Arduino.h>
 
 #ifdef ESP32
 #include <AsyncTCP.h>
@@ -78,6 +78,7 @@ class AsyncMqttClient {
   uint16_t subscribe(const char* topic, uint8_t qos);
   uint16_t unsubscribe(const char* topic);
   uint16_t publish(const char* topic, uint8_t qos, bool retain, const char* payload = nullptr, size_t length = 0, bool dup = false, uint16_t message_id = 0);
+  uint16_t publish(const char* topic, uint8_t qos, bool retain, AsyncMqttClientInternals::PayloadHandler handler, size_t length, bool dup = false, uint16_t message_id = 0);
 
   const char* getClientId();
 
@@ -137,6 +138,11 @@ class AsyncMqttClient {
 #ifdef ESP32
   SemaphoreHandle_t _xSemaphore = nullptr;
 #endif
+
+  bool _isSendingLargePayload;
+  size_t _largePayloadLength;
+  size_t _largePayloadIndex;
+  AsyncMqttClientInternals::PayloadHandler _largePayloadHandler;
 
   void _clear();
   void _freeCurrentParsedPacket();
