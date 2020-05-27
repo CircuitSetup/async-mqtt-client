@@ -39,7 +39,6 @@ PublishPacket::PublishPacket(ParsingInformation* parsingInformation, OnMessageIn
 PublishPacket::~PublishPacket() = default;
 
 void PublishPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosition) {
-  uint8_t currentByte = data[currentBytePosition++];
   switch (state) {
     case ParsingState::TOPIC_NAME_LENGTH:
       if (!_parsingInformation->read(_topicLength, data, len, currentBytePosition))
@@ -58,7 +57,7 @@ void PublishPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosi
       }
       break;
     case ParsingState::TOPIC_NAME:
-      if (!_ignore) _parsingInformation->topicBuffer.push_back(currentByte);
+      if (!_ignore) _parsingInformation->topicBuffer.push_back(data[currentBytePosition++]);
       if (_parsingInformation->topicBuffer.size() == _topicLength) {
         _parsingInformation->topicBuffer.push_back('\0');
         state = _qos == MQTTQOS::QOS0 ? ParsingState::PROPERTIES_LENGTH : ParsingState::PACKET_IDENTIFIER;
@@ -80,7 +79,7 @@ void PublishPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosi
       }
       break;
     case ParsingState::PROPERTIES:
-      if (!_ignore && props.buffer.data() != nullptr) props.buffer.push_back(currentByte);
+      if (!_ignore && props.buffer.data() != nullptr) props.buffer.push_back(data[currentBytePosition++]);
       if (props.buffer.size() == propertiesLength) {
         _preparePayloadHandling();
       }

@@ -1,7 +1,7 @@
 #include "AsyncMqttClient.hpp"
 #include "AsyncMqttClient/Headers.hpp"
+#include "AsyncMqttClient/Properties.h"
 #include <ESP8266WiFiType.h>
-#include <async-mqtt-client/src/AsyncMqttClient/Properties.h>
 #include <lwip/tcpbase.h>
 #include <memory>
 
@@ -350,6 +350,7 @@ void AsyncMqttClient::_onData(AsyncClient* client, char* cdata, size_t len) {
         currentByte = data[currentBytePosition++];
         _parsingInformation.type = static_cast<AsyncMqttClientInternals::PacketType>(currentByte >> 4u);
         _parsingInformation.flags = currentByte & 0x7Fu;
+        _parsingInformation.size = 0;
         _parsingInformation.bufferState = AsyncMqttClientInternals::BufferState::REMAINING_LENGTH;
         _lastServerActivity = millis();
         switch (_parsingInformation.type) {

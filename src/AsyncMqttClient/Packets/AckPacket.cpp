@@ -22,8 +22,15 @@ void AckPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosition
         state = ParsingState::REASON;
       break;
     case ParsingState::REASON:
-      if (_parsingInformation->read(*reinterpret_cast<uint8_t*>(&_reason), data, len, currentBytePosition))
-        state = ParsingState::PROPERTIES_LENGTH;
+      if (_parsingInformation->read(*reinterpret_cast<uint8_t*>(&_reason), data, len, currentBytePosition)) {
+        if (_parsingInformation->size == 3) {
+          _parsingInformation->bufferState = BufferState::NONE;
+          Properties props{{}};
+          _callback(_packetId, AckReason::SUCCESS, props);
+        } else {
+          state = ParsingState::PROPERTIES_LENGTH;
+        }
+      }
       break;
     case ParsingState::PROPERTIES_LENGTH:
       if (_parsingInformation->readVbi(propertiesLength, data, len, currentBytePosition))
