@@ -345,6 +345,13 @@ void AsyncMqttClient::_onData(AsyncClient* client, char* cdata, size_t len) {
   size_t currentBytePosition = 0;
   uint8_t currentByte;
   do {
+#ifdef MQTT_DEBUG
+    Serial.print("loop begin state: ");
+    Serial.print(static_cast<unsigned char>(_parsingInformation.bufferState));
+    Serial.print(" packet: ");
+    Serial.println(static_cast<unsigned char>(_parsingInformation.type));
+#endif
+
     switch (_parsingInformation.bufferState) {
       case AsyncMqttClientInternals::BufferState::NONE:
         currentByte = data[currentBytePosition++];
@@ -411,14 +418,23 @@ void AsyncMqttClient::_onPoll(AsyncClient* client) {
 
   // if there is too much time the client has sent a ping request without a response, disconnect client to avoid half open connections
   if (_lastPingRequestTime != 0 && (millis() - _lastPingRequestTime) >= (_keepAlive * 1000 * 2)) {
+#ifdef MQTT_DEBUG
+    Serial.println("Timeout disconnect");
+#endif
     disconnect();
     return;
   // send ping to ensure the server will receive at least one message inside keepalive window
   } else if (_lastPingRequestTime == 0 && (millis() - _lastClientActivity) >= (_keepAlive * static_cast<uint32_t >(1000 * 0.7))) {
+#ifdef MQTT_DEBUG
+    Serial.println("Send ca ping");
+#endif
     _sendPing();
 
   // send ping to verify if the server is still there (ensure this is not a half connection)
   } else if (_connected && _lastPingRequestTime == 0 && (millis() - _lastServerActivity) >= (_keepAlive * static_cast<uint32_t >(1000 * 0.7))) {
+#ifdef MQTT_DEBUG
+    Serial.println("Send sa ping");
+#endif
     _sendPing();
   }
 
@@ -542,6 +558,10 @@ bool AsyncMqttClient::_sendPing() {
     SEMAPHORE_GIVE();
     return false;
   }
+
+#ifdef MQTT_DEBUG
+  Serial.println("send ping");
+#endif
 
   _client.add(header.bytes, 2, TCP_WRITE_FLAG_COPY);
   _client.send();
