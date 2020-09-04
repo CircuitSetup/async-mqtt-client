@@ -3,7 +3,7 @@
 #include <functional>
 #include <vector>
 
-#include "Arduino.h"
+#include <Arduino.h>
 
 #ifdef ESP32
 #include <AsyncTCP.h>
@@ -70,6 +70,7 @@ class AsyncMqttClient {
   AsyncMqttClient& onUnsubscribe(AsyncMqttClientInternals::OnUnsubscribeUserCallback callback);
   AsyncMqttClient& onMessage(AsyncMqttClientInternals::OnMessageUserCallback callback);
   AsyncMqttClient& onPublish(AsyncMqttClientInternals::OnPublishUserCallback callback);
+  AsyncMqttClient& onPing(AsyncMqttClientInternals::OnPingUserCallback callback);
 
   bool connected() const;
   void connect();
@@ -77,6 +78,7 @@ class AsyncMqttClient {
   uint16_t subscribe(const char* topic, uint8_t qos);
   uint16_t unsubscribe(const char* topic);
   uint16_t publish(const char* topic, uint8_t qos, bool retain, const char* payload = nullptr, size_t length = 0, bool dup = false, uint16_t message_id = 0);
+  uint16_t publish(const char* topic, uint8_t qos, bool retain, AsyncMqttClientInternals::PayloadHandler handler, size_t length, bool dup = false, uint16_t message_id = 0);
 
   const char* getClientId();
 
@@ -114,12 +116,13 @@ class AsyncMqttClient {
   std::vector<std::array<uint8_t, SHA1_SIZE>> _secureServerFingerprints;
 #endif
 
-  std::vector<AsyncMqttClientInternals::OnConnectUserCallback> _onConnectUserCallbacks;
-  std::vector<AsyncMqttClientInternals::OnDisconnectUserCallback> _onDisconnectUserCallbacks;
-  std::vector<AsyncMqttClientInternals::OnSubscribeUserCallback> _onSubscribeUserCallbacks;
-  std::vector<AsyncMqttClientInternals::OnUnsubscribeUserCallback> _onUnsubscribeUserCallbacks;
+  AsyncMqttClientInternals::OnConnectUserCallback _onConnectUserCallback;
+  AsyncMqttClientInternals::OnDisconnectUserCallback _onDisconnectUserCallback;
+  AsyncMqttClientInternals::OnSubscribeUserCallback _onSubscribeUserCallback;
+  AsyncMqttClientInternals::OnUnsubscribeUserCallback _onUnsubscribeUserCallback;
   std::vector<AsyncMqttClientInternals::OnMessageUserCallback> _onMessageUserCallbacks;
-  std::vector<AsyncMqttClientInternals::OnPublishUserCallback> _onPublishUserCallbacks;
+  AsyncMqttClientInternals::OnPublishUserCallback _onPublishUserCallback;
+  AsyncMqttClientInternals::OnPingUserCallback _onPingUserCallback;
 
   AsyncMqttClientInternals::ParsingInformation _parsingInformation;
   AsyncMqttClientInternals::Packet* _currentParsedPacket;
@@ -135,6 +138,11 @@ class AsyncMqttClient {
 #ifdef ESP32
   SemaphoreHandle_t _xSemaphore = nullptr;
 #endif
+
+  bool _isSendingLargePayload;
+  size_t _largePayloadLength;
+  size_t _largePayloadIndex;
+  AsyncMqttClientInternals::PayloadHandler _largePayloadHandler;
 
   void _clear();
   void _freeCurrentParsedPacket();
