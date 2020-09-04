@@ -1,91 +1,122 @@
+#include <utility>
+
+#include "../Config.hpp"
+
 #include "PublishPacket.hpp"
 
 using AsyncMqttClientInternals::PublishPacket;
 
 PublishPacket::PublishPacket(ParsingInformation* parsingInformation, OnMessageInternalCallback dataCallback, OnPublishInternalCallback completeCallback)
 : _parsingInformation(parsingInformation)
-, _dataCallback(dataCallback)
-, _completeCallback(completeCallback)
+, _dataCallback(std::move(dataCallback))
+, _completeCallback(std::move(completeCallback))
 , _dup(false)
-, _qos(0)
-, _retain(0)
-, _bytePosition(0)
-, _topicLengthMsb(0)
+, _qos(QOS0)
+, _retain(false)
 , _topicLength(0)
 , _ignore(false)
-, _packetIdMsb(0)
 , _packetId(0)
 , _payloadLength(0)
-, _payloadBytesRead(0) {
-    _dup = _parsingInformation->packetFlags & HeaderFlag.PUBLISH_DUP;
-    _retain = _parsingInformation->packetFlags & HeaderFlag.PUBLISH_RETAIN;
-    char qosMasked = _parsingInformation->packetFlags & 0x06;
-    switch (qosMasked) {
-      case HeaderFlag.PUBLISH_QOS0:
-        _qos = 0;
-        break;
-      case HeaderFlag.PUBLISH_QOS1:
-        _qos = 1;
-        break;
-      case HeaderFlag.PUBLISH_QOS2:
-        _qos = 2;
-        break;
-    }
-}
-
-PublishPacket::~PublishPacket() {
-}
-
-void PublishPacket::parseVariableHeader(char* data, size_t len, size_t* currentBytePosition) {
-  char currentByte = data[(*currentBytePosition)++];
-  if (_bytePosition == 0) {
-    _topicLengthMsb = currentByte;
-  } else if (_bytePosition == 1) {
-    _topicLength = currentByte | _topicLengthMsb << 8;
-    if (_topicLength > _parsingInformation->maxTopicLength) {
-      _ignore = true;
-    } else {
-      _parsingInformation->topicBuffer[_topicLength] = '\0';
-    }
-  } else if (_bytePosition >= 2 && _bytePosition < 2 + _topicLength) {
-    // Starting from here, _ignore might be true
-    if (!_ignore) _parsingInformation->topicBuffer[_bytePosition - 2] = currentByte;
-    if (_bytePosition == 2 + _topicLength - 1 && _qos == 0) {
-      _preparePayloadHandling(_parsingInformation->remainingLength - (_bytePosition + 1));
-      return;
-    }
-  } else if (_bytePosition == 2 + _topicLength) {
-    _packetIdMsb = currentByte;
-  } else {
-    _packetId = currentByte | _packetIdMsb << 8;
-    _preparePayloadHandling(_parsingInformation->remainingLength - (_bytePosition + 1));
+, _payloadBytesRead(0)
+, propertiesLength(0)
+, state(ParsingState::TOPIC_NAME_LENGTH) {
+  _dup = _parsingInformation->flags & HeaderFlag.PUBLISH_DUP;
+  _retain = _parsingInformation->flags & HeaderFlag.PUBLISH_RETAIN;
+  uint8_t qosByte = (_parsingInformation->flags & 0x06u);
+  switch (qosByte) {
+    case HeaderFlag.PUBLISH_QOS0:
+      _qos = QOS0;
+      break;
+    case HeaderFlag.PUBLISH_QOS1:
+      _qos = QOS1;
+      break;
+    case HeaderFlag.PUBLISH_QOS2:
+      _qos = QOS2;
+      break;
   }
-  _bytePosition++;
 }
 
-void PublishPacket::_preparePayloadHandling(uint32_t payloadLength) {
+PublishPacket::~PublishPacket() = default;
+
+void PublishPacket::parseData(uint8_t* data, size_t len, size_t& currentBytePosition) {
+  switch (state) {
+    case ParsingState::TOPIC_NAME_LENGTH:
+      if (!_parsingInformation->read(_topicLength, data, len, currentBytePosition))
+        return;
+
+      if (_topicLength <= MQTT_MAX_TOPIC_LENGTH) {
+        _parsingInformation->topicBuffer.reserve(_topicLength + 1);
+        if (_parsingInformation->topicBuffer.data() == nullptr) _ignore = true;
+      } else {
+        _ignore = true;
+      }
+      if (_topicLength == 0) {
+        state = _qos == MQTTQOS::QOS0 ? ParsingState::PROPERTIES_LENGTH : ParsingState::PACKET_IDENTIFIER;
+      } else {
+        state = ParsingState::TOPIC_NAME;
+      }
+      break;
+    case ParsingState::TOPIC_NAME:
+      if (!_ignore) _parsingInformation->topicBuffer.push_back(data[currentBytePosition++]);
+      if (_parsingInformation->topicBuffer.size() == _topicLength) {
+        _parsingInformation->topicBuffer.push_back('\0');
+        state = _qos == MQTTQOS::QOS0 ? ParsingState::PROPERTIES_LENGTH : ParsingState::PACKET_IDENTIFIER;
+      }
+      break;
+    case ParsingState::PACKET_IDENTIFIER:
+      if (_parsingInformation->read(_packetId, data, len, currentBytePosition))
+        state = ParsingState::PROPERTIES_LENGTH;
+      break;
+    case ParsingState::PROPERTIES_LENGTH:
+      if (!_parsingInformation->readVbi(propertiesLength, data, len, currentBytePosition))
+        return;
+
+      if (propertiesLength == 0) {
+        _preparePayloadHandling();
+      } else {
+        state = ParsingState::PROPERTIES;
+        if (!_ignore) props.buffer.reserve(propertiesLength);
+      }
+      break;
+    case ParsingState::PROPERTIES:
+      if (!_ignore && props.buffer.data() != nullptr) props.buffer.push_back(data[currentBytePosition++]);
+      if (props.buffer.size() == propertiesLength) {
+        _preparePayloadHandling();
+      }
+      break;
+    case ParsingState::PAYLOAD:
+      size_t remainToRead = len - currentBytePosition;
+      if (_payloadBytesRead + remainToRead > _payloadLength) remainToRead = _payloadLength - _payloadBytesRead;
+
+      if (!_ignore) {
+        _dataCallback(reinterpret_cast<char*>(_parsingInformation->topicBuffer.data()), data + currentBytePosition, _qos, _dup, _retain, props, remainToRead, _payloadBytesRead, _payloadLength, _packetId);
+      }
+      _payloadBytesRead += remainToRead;
+      currentBytePosition += remainToRead;
+
+      if (_payloadBytesRead == _payloadLength) {
+        _parsingInformation->bufferState = BufferState::NONE;
+        _parsingInformation->topicBuffer.clear();
+        if (!_ignore) _completeCallback(_packetId, _qos, props);
+      }
+  }
+}
+
+void PublishPacket::_preparePayloadHandling() {
+  uint32_t payloadLength = _parsingInformation->size -
+                         (2 /*topic name length*/  + _topicLength +
+                          (_qos == MQTTQOS::QOS0 ? 0 : 2 /*packet id*/) +
+                          AsyncMqttClientInternals::Helpers::variableByteIntegerSize(propertiesLength) + propertiesLength);
   _payloadLength = payloadLength;
+
   if (payloadLength == 0) {
     _parsingInformation->bufferState = BufferState::NONE;
     if (!_ignore) {
-      _dataCallback(_parsingInformation->topicBuffer, nullptr, _qos, _dup, _retain, 0, 0, 0, _packetId);
-      _completeCallback(_packetId, _qos);
+      _dataCallback(reinterpret_cast<char*>(_parsingInformation->topicBuffer.data()), nullptr, _qos, _dup, _retain, props, 0, 0, 0, _packetId);
+      _completeCallback(_packetId, _qos, props);
     }
   } else {
-    _parsingInformation->bufferState = BufferState::PAYLOAD;
+   state = ParsingState::PAYLOAD;
   }
 }
 
-void PublishPacket::parsePayload(char* data, size_t len, size_t* currentBytePosition) {
-  size_t remainToRead = len - (*currentBytePosition);
-  if (_payloadBytesRead + remainToRead > _payloadLength) remainToRead = _payloadLength - _payloadBytesRead;
-
-  if (!_ignore) _dataCallback(_parsingInformation->topicBuffer, data + (*currentBytePosition), _qos, _dup, _retain, remainToRead, _payloadBytesRead, _payloadLength, _packetId);
-  _payloadBytesRead += remainToRead;
-  (*currentBytePosition) += remainToRead;
-
-  if (_payloadBytesRead == _payloadLength) {
-    _parsingInformation->bufferState = BufferState::NONE;
-    if (!_ignore) _completeCallback(_packetId, _qos);
-  }
-}

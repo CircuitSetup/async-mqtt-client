@@ -9,10 +9,9 @@ namespace AsyncMqttClientInternals {
 class PingRespPacket : public Packet {
  public:
   explicit PingRespPacket(ParsingInformation* parsingInformation, OnPingRespInternalCallback callback);
-  ~PingRespPacket();
+  ~PingRespPacket() override;
 
-  void parseVariableHeader(char* data, size_t len, size_t* currentBytePosition);
-  void parsePayload(char* data, size_t len, size_t* currentBytePosition);
+  void parseData(uint8_t* data, size_t len, size_t& currentBytePosition) override;
 
  private:
   ParsingInformation* _parsingInformation;
