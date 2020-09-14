@@ -2,6 +2,7 @@
 
 AsyncMqttClient::AsyncMqttClient()
 : _connected(false)
+, _lockMutiConnections(false)
 , _connectPacketNotEnoughSpace(false)
 , _disconnectOnPoll(false)
 , _tlsBadFingerprint(false)
@@ -57,7 +58,6 @@ AsyncMqttClient::AsyncMqttClient()
   sprintf(_generatedClientId, "esp8266-%06x", ESP.getChipId());
 #endif
   _clientId = _generatedClientId;
-
   setMaxTopicLength(128);
 }
 
@@ -197,7 +197,7 @@ void AsyncMqttClient::_clear() {
 /* TCP */
 void AsyncMqttClient::_onConnect(AsyncClient* client) {
   (void)client;
-
+  _lockMutiConnections = true;
 #if ASYNC_TCP_SSL_ENABLED
   if (_secure && _secureServerFingerprints.size() > 0) {
     SSL* clientSsl = _client.getSSL();
@@ -375,6 +375,7 @@ void AsyncMqttClient::_onConnect(AsyncClient* client) {
 
 void AsyncMqttClient::_onDisconnect(AsyncClient* client) {
   (void)client;
+  _lockMutiConnections = false;
   AsyncMqttClientDisconnectReason reason;
 
   if (_connectPacketNotEnoughSpace) {
@@ -739,7 +740,8 @@ bool AsyncMqttClient::connected() const {
 
 void AsyncMqttClient::connect() {
   if (_connected) return;
-
+  if (_lockMutiConnections) return;
+  _lockMutiConnections = true;
 #if ASYNC_TCP_SSL_ENABLED
   if (_useIp) {
     _client.connect(_ip, _port, _secure);
@@ -757,7 +759,8 @@ void AsyncMqttClient::connect() {
 
 void AsyncMqttClient::disconnect(bool force) {
   if (!_connected) return;
-
+  if (!_lockMutiConnections) return;
+  _lockMutiConnections = false;
   if (force) {
     _client.close(true);
   } else {
